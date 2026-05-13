@@ -2,7 +2,7 @@ import os
 def RLE_encode(data, Ms=1, Mc=1, utf8=False):
     if utf8 and isinstance(data, str):
         encoded, Ms = RLE_encode_utf8(data, Mc)
-        return encoded
+        return encoded, Ms
     result = bytearray()
     i = 0
     n = len(data)
@@ -290,11 +290,13 @@ def test():
     print("\n")
 
 def test_file():
-    RLEFile.compress_file("Тестовые данные/input.txt","Тестовые данные/encoded.txt")
-    RLEFile.load_compressed("Тестовые данные/encoded.txt", "Тестовые данные/decoded.txt")
+    print("---Тестирование файлов\n")
+    RLEFile.compress_file("Результаты/input.txt","Результаты/encoded.txt")
+    RLEFile.load_compressed("Результаты/encoded.txt", "Результаты/decoded.txt")
     print("\n")
 
 def test_simpledata():
+    print("---Тестирование простейших тестовых данных")
     print("\nРазные Ms")
     data_d_ms = bytes([0x12, 0x34, 0x12, 0x34, 0x12, 0x34])
     print(f"Исходные: {' '.join(f'0x{b:02X}' for b in data_d_ms)}")
@@ -316,29 +318,25 @@ def test_simpledata():
     print("\n")
 
 def test_testdata():
-    RLEFile.compress_file("Тестовые данные/Chehov_Anton__Bezotcovshina_www.Litmir.net_72436.txt", "Тестовые данные/encoded.txt", utf8=True, is_text=True)
+    print("---Тестирование основного тестового набора")
+    RLEFile.compress_file("Тестовые данные/Chehov_Anton__Bezotcovshina_www.Litmir.net_72436.txt", "Результаты/encoded.txt", utf8=True, is_text=True)
     print("\n")
 
-    RLEFile.compress_file("Тестовые данные/enwik7", "Тестовые данные/encoded.txt")
+    RLEFile.compress_file("Тестовые данные/enwik7", "Результаты/encoded.txt")
     print("\n")
 
-    RLEFile.compress_file("Тестовые данные/RAW_bw.raw", "Тестовые данные/encoded.txt")
+    RLEFile.compress_file("Тестовые данные/RAW_bw.raw", "Результаты/encoded.txt")
     print("\n")
 
-    RLEFile.compress_file("Тестовые данные/RAW_gray.raw", "Тестовые данные/encoded.txt")
+    RLEFile.compress_file("Тестовые данные/RAW_gray.raw", "Результаты/encoded.txt")
     print("\n")
 
-    RLEFile.compress_file("Тестовые данные/RAW_color.raw", "Тестовые данные/encoded.txt")
+    RLEFile.compress_file("Тестовые данные/RAW_color.raw", "Результаты/encoded.txt")
     print("\n")
 
-    RLEFile.compress_file("Тестовые данные/nvidia-smi.exe", "Тестовые данные/encoded.txt")
+    RLEFile.compress_file("Тестовые данные/nvidia-smi.exe", "Результаты/encoded.txt")
     print("\n")
 
-# print("--->Тестирование файлов\n")
 # test_file()
-
-# print("--->Тестирование простейших тестовых данных")
 # test_simpledata()
-
-# print("--->Тестирование основного тестового набора")
-test_testdata()
+# test_testdata()
