@@ -1,6 +1,8 @@
 import struct
 import os
-
+import time
+import matplotlib.pyplot as plt
+import numpy as np
 
 class LZ77:
     def __init__(self, window_size=4096, lookahead_size=16):
@@ -93,8 +95,8 @@ class LZSS:
         self.window_size = window_size
         self.lookahead_size = lookahead_size
         self.min_match = min_match
-        self.offset_bits = (window_size - 1).bit_length()
-        self.length_bits = (lookahead_size - 1).bit_length()
+        self.offset_bits = max(8, (window_size - 1).bit_length())
+        self.length_bits = max(8, (lookahead_size - 1).bit_length())
         self.offset_bytes = (self.offset_bits + 7) // 8
         self.length_bytes = (self.length_bits + 7) // 8
         self.max_offset = (1 << (self.offset_bytes * 8)) - 1
@@ -118,11 +120,13 @@ class LZSS:
                 window = data[window_start:pos]
                 lookahead_end = min(pos + self.lookahead_size, n)
                 lookahead = data[pos:lookahead_end]
+
                 if len(lookahead) >= self.min_match and window:
                     best_offset = 0
                     best_length = 0
-                    max_offset = min(len(window), self.window_size)
-                    for offset in range(1, max_offset + 1):
+                    max_search_offset = min(len(window), self.window_size)
+
+                    for offset in range(1, max_search_offset + 1):
                         start_pos = len(window) - offset
                         length = 0
                         while (length < len(lookahead) and
@@ -136,10 +140,12 @@ class LZSS:
                             best_offset = offset
                             if best_length == self.lookahead_size:
                                 break
-                    match_offset = best_offset
-                    match_length = best_length
 
-                if match_length >= self.min_match:
+                    if best_length >= self.min_match and best_offset <= self.max_offset:
+                        match_offset = best_offset
+                        match_length = best_length
+
+                if match_length >= self.min_match and match_offset <= self.max_offset:
                     flags_byte |= (1 << bit_pos)
                     elements.append(('ref', match_offset, match_length))
                     pos += match_length
@@ -269,3 +275,122 @@ class LZSSFileHandler:
         print(f"Сжатый размер: {encoded_size:,} байт")
         print(f"Коэффициент: {ratio:.2f}x")
         return ratio
+
+def analyze_window_size_impact(test_file, window_sizes=None, output_plot='Результаты/LZSS_график.png'):
+    if window_sizes is None:
+        window_sizes = [64, 128, 256, 512, 1024, 2048, 4096]
+
+    is_text = test_file.lower().endswith('.txt')
+
+    if is_text:
+        with open(test_file, 'r', encoding='utf-8') as f:
+            data = f.read().encode('utf-8')
+    else:
+        with open(test_file, 'rb') as f:
+            data = f.read()
+
+    original_size = len(data)
+    ratios = []
+    compressed_sizes = []
+    encode_times = []
+    valid_window_sizes = []
+
+    print(f"Исследование влияния размера окна на сжатие LZSS")
+    print(f"Файл: {test_file}")
+    print(f"Исходный размер: {original_size:,} байт")
+
+    for ws in window_sizes:
+        la = min(ws // 8, 258)
+        la = max(la, 8)
+
+        try:
+            encoder = LZSS(window_size=ws, lookahead_size=la, min_match=3)
+
+            start_time = time.time()
+            encoded = encoder.encode(data)
+            elapsed = time.time() - start_time
+
+            compressed_size = len(encoded)
+            ratio = original_size / compressed_size if compressed_size > 0 else 0
+
+            ratios.append(ratio)
+            compressed_sizes.append(compressed_size)
+            encode_times.append(elapsed)
+            valid_window_sizes.append(ws)
+
+            print(f"Окно: {ws:>6} | Сжатo: {compressed_size:>10,} байт | "
+                  f"Коэфф: {ratio:>6.2f}x | Время: {elapsed:>7.3f} сек")
+
+        except Exception as e:
+            print(f"Окно: {ws:>6} | ОШИБКА: {str(e)}")
+            continue
+
+    if not ratios:
+        print("Нет успешных результатов для построения графика")
+        return [], [], [], []
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    fig.suptitle(f'Влияние размера окна на сжатие LZSS\nФайл: {os.path.basename(test_file)}',
+                 fontsize=14, fontweight='bold')
+
+    ax1 = axes[0, 0]
+    ax1.plot(valid_window_sizes, ratios, 'b-o', linewidth=2, markersize=8)
+    ax1.set_xlabel('Размер окна (байт)')
+    ax1.set_ylabel('Коэффициент сжатия')
+    ax1.set_title('Коэффициент сжатия vs Размер окна')
+    ax1.grid(True, alpha=0.3)
+    ax1.set_xscale('log', base=2)
+    ax1.axhline(y=1.0, color='r', linestyle='--', alpha=0.5, label='Без сжатия')
+    ax1.legend()
+
+    max_ratio_idx = ratios.index(max(ratios))
+    ax1.annotate(f'Макс: {ratios[max_ratio_idx]:.2f}x\nОкно: {valid_window_sizes[max_ratio_idx]}',
+                 xy=(valid_window_sizes[max_ratio_idx], ratios[max_ratio_idx]),
+                 xytext=(10, 10), textcoords='offset points',
+                 bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.7),
+                 arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0'))
+
+    ax2 = axes[0, 1]
+    ax2.plot(valid_window_sizes, compressed_sizes, 'g-s', linewidth=2, markersize=8)
+    ax2.set_xlabel('Размер окна (байт)')
+    ax2.set_ylabel('Размер сжатых данных (байт)')
+    ax2.set_title('Размер сжатых данных vs Размер окна')
+    ax2.grid(True, alpha=0.3)
+    ax2.set_xscale('log', base=2)
+
+    ax3 = axes[1, 0]
+    ax3.plot(valid_window_sizes, encode_times, 'r-^', linewidth=2, markersize=8)
+    ax3.set_xlabel('Размер окна (байт)')
+    ax3.set_ylabel('Время сжатия (сек)')
+    ax3.set_title('Время сжатия vs Размер окна')
+    ax3.grid(True, alpha=0.3)
+    ax3.set_xscale('log', base=2)
+
+    ax4 = axes[1, 1]
+    efficiency = [r / t if t > 0 else 0 for r, t in zip(ratios, encode_times)]
+    ax4.plot(valid_window_sizes, efficiency, 'm-D', linewidth=2, markersize=8)
+    ax4.set_xlabel('Размер окна (байт)')
+    ax4.set_ylabel('Эффективность (коэфф/сек)')
+    ax4.set_title('Эффективность сжатия vs Размер окна')
+    ax4.grid(True, alpha=0.3)
+    ax4.set_xscale('log', base=2)
+
+    plt.tight_layout()
+    plt.savefig(output_plot, dpi=150, bbox_inches='tight')
+    plt.show()
+
+    best_idx = ratios.index(max(ratios))
+    best_ws = valid_window_sizes[best_idx]
+
+    best_eff_idx = efficiency.index(max(efficiency))
+    best_eff_ws = valid_window_sizes[best_eff_idx]
+
+    print(f"РЕЗУЛЬТАТЫ:")
+    print(f"Оптимальный размер окна (макс. сжатие): {best_ws} байт")
+    print(f"Максимальный коэффициент сжатия: {ratios[best_idx]:.2f}x")
+    print(f"Размер сжатых данных: {compressed_sizes[best_idx]:,} байт")
+    print(f"Оптимальный размер окна (макс. эффективность): {best_eff_ws} байт")
+    print(f"График сохранён в: {output_plot}")
+    return valid_window_sizes, ratios, compressed_sizes, encode_times
+
+# analyze_window_size_impact("Тестовые данные/enwik7")

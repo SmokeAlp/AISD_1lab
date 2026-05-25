@@ -190,7 +190,7 @@ def analyze_mtf_effect():
     return entropy_original, entropy_mtf
 
 # энтропия
-analyze_real_text()
+# analyze_real_text()
 
 # mtf
-analyze_mtf_effect()
+# analyze_mtf_effect()

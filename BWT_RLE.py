@@ -78,4 +78,4 @@ def compress_all_test_files():
     for name, ratio in results.items():
         print(f"  {name}: {ratio:.2f}x")
 
-compress_all_test_files()
+# compress_all_test_files()

@@ -223,6 +223,8 @@ class RLEFile:
                 raise ValueError("Неполные данные")
 
         decoded = RLE_decode(encoded_data, Ms, Mc, is_text)
+        if isinstance(decoded, str):
+            decoded = decoded.encode('utf-8')
 
         if len(decoded) > original_size:
                 decoded = decoded[:original_size]
